@@ -1,0 +1,28 @@
+# Ignore generated TSV and CSV databases
+*.csv
+*.tsv
+*.zip
+output_tsvs/
+output/
+
+# OS specific temporary files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python cached files
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache/
+
+# IDE and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Virtual Environments
+venv/
+env/
+.env
