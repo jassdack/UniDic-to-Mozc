@@ -3,7 +3,7 @@
 重要注意：本ライセンスはコード・スクリプトにのみ適用されます
 
 国立国語研究所「UniDic」データ自体は、本リポジトリに含まれていません。
-UniDic は別途公式サイト(https://clrd.ninjal.ac.jp/unidic/)から取得し、UniDic固有のライセンス（GPLv2 / LGPLv2.1 / 修正BSD）を遵守してください。
+UniDic は別途公式サイト(https://clrd.ninjal.ac.jp/unidic/) から取得し、UniDic固有のライセンス（GPLv2 / LGPLv2.1 / 修正BSD）を遵守してください。
 また、本スクリプトによって出力されたユーザー辞書ファイルはUniDicのライセンスを当然に継承します。
 
 ---
