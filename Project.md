@@ -90,11 +90,11 @@
 ```mermaid
 graph TD
     subgraph "Phase 1: 個別変換 (convert_unidic.py)"
-        A[UniDic CSV (CWJ/CSJ)] --> B{ノイズ判定 (is_noise)}
+        A["UniDic CSV (CWJ/CSJ)"] --> B{"ノイズ判定 (is_noise)"}
         B -- 該当 --> C[ドロップ]
-        B -- 適合 --> D[正規化 & クレンジング]
-        D --> E[読みの抽出・フォールバック]
-        E --> F[品詞マッピング・カスケード]
+        B -- 適合 --> D["正規化 & クレンジング"]
+        D --> E["読みの抽出・フォールバック"]
+        E --> F["品詞マッピング・カスケード"]
         F --> G{重複排除}
         G --> H[中間TSV生成]
     end
@@ -102,10 +102,10 @@ graph TD
     subgraph "Phase 2: 統合・分割 (merge_unidics.py)"
         H --> I[複数ソースの読み込み]
         I --> J[グローバル重複排除]
-        J --> K[ソート (読み > コスト > 表記)]
-        K --> L{10万語超過?}
+        J --> K["ソート (読み > コスト > 表記)"]
+        K --> L{"10万語超過?"}
         L -- Yes --> M[ファイル分割]
-        L -- No --> N[最終的なユーザー辞書 (TSV)]
+        L -- No --> N["最終的なユーザー辞書 (TSV)"]
     end
 
     subgraph "POS Mapping Detail (cascade)"
