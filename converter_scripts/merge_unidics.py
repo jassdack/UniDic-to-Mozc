@@ -1,9 +1,13 @@
 import os
 import sys
+import itertools
+
+from typing import Dict, Set, Tuple, List, Any
 
 def merge_unidics(cwj_path, csj_path, output_path):
-    # key: (reading, surface, pos) -> value: {source_tags, lemmas}
-    dictionary = {}
+    # key: (reading, surface, pos) -> value: {sources, cost}
+    # 型ヒントを明示して静的解析を助ける
+    dictionary: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
 
     def process_file(path, source_tag):
         if not os.path.exists(path):
@@ -32,9 +36,23 @@ def merge_unidics(cwj_path, csj_path, output_path):
                 if key not in dictionary:
                     dictionary[key] = {"sources": {source_tag}, "cost": cost_val}
                 else:
-                    dictionary[key]["sources"].add(source_tag)
-                    if cost_val < dictionary[key]["cost"]:
-                        dictionary[key]["cost"] = cost_val
+                    # すでに同じ(読み, 表記, 品詞)が見つかった場合の処理
+                    current_entry = dictionary[key]
+                    
+                    # 万が一 current_entry が辞書でない場合、再初期化してスキップを防ぐ
+                    if not isinstance(current_entry, dict):
+                        dictionary[key] = {"sources": {source_tag}, "cost": cost_val}
+                        continue
+
+                    # sources がセットであることを保証する
+                    if "sources" not in current_entry or not isinstance(current_entry["sources"], set):
+                        current_entry["sources"] = {source_tag}
+                    else:
+                        current_entry["sources"].add(source_tag)
+                    
+                    # コストの更新（より小さい値を優先）
+                    if cost_val < current_entry.get("cost", 99999):
+                        current_entry["cost"] = cost_val
 
     process_file(cwj_path, "cwj")
     process_file(csj_path, "csj")
@@ -49,12 +67,18 @@ def merge_unidics(cwj_path, csj_path, output_path):
     base_name, ext = os.path.splitext(output_path)
     
     # 読み（五十音順）を第一キーとし、同音の中で単語生起コストが小さい（頻出）順、次に表記順にソート。
-    sorted_keys = sorted(dictionary.keys(), key=lambda k: (k[0], dictionary[k]["cost"], k[1]))
+    sorted_keys: List[Tuple[str, str, str]] = sorted(
+        dictionary.keys(), 
+        key=lambda k: (k[0], dictionary[k].get("cost", 99999), k[1])
+    )
     total_entries = len(sorted_keys)
     
     for i in range(0, total_entries, LIMIT):
         current_output_path = f"{base_name}_{file_count}{ext}"
-        chunk = sorted_keys[i : i + LIMIT]
+        # インデックスを明示的に計算してスライスの型エラーを回避
+        end_idx = i + LIMIT
+        # itertools.islice を使用して、型チェッカーのスライス解釈エラーを回避しつつ安全にチャンクを取得
+        chunk = list(itertools.islice(sorted_keys, i, end_idx))
         
         with open(current_output_path, 'w', encoding='utf-8') as f_out:
             for key in chunk:

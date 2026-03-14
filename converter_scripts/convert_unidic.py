@@ -3,6 +3,7 @@ import csv
 import re
 import sys
 import json
+from typing import Set, Tuple, Optional, Any
 
 class UnidicConverter:
     def __init__(self, output_dir, config_path=None):
@@ -210,78 +211,76 @@ class UnidicConverter:
         
         return False
 
-    def convert(self, csv_path, output_name):
+    def convert(self, csv_path: str, output_name: str) -> None:
         output_file = os.path.join(self.output_dir, output_name)
         print(f"\n[Process] Processing: {csv_path}")
         
-        processed = 0
-        written = 0
-        unique_entries = set() # 重複排除: (reading, surface, pos)
+        unique_entries: Set[Tuple[str, str, str]] = set() # 重複排除: (reading, surface, pos)
         
+        stats = {"processed": 0, "written": 0}
         try:
             # 改善点4: newline='' を追加して安全にファイルを開く
-            with open(csv_path, "r", encoding="utf-8", newline='') as f_in, \
-                 open(output_file, "w", encoding="utf-8", newline='') as f_out:
-                
-                reader = csv.reader(f_in)
-                for row in reader:
-                    processed += 1
-                    if processed % 100000 == 0:
-                        print(f"\r  Scanned {processed}... Saved {written}", end="", flush=True)
-                    
-                    if len(row) < 18: continue
-                    
-                    # ノイズ判定
-                    if self.is_noise(row): continue
-                    
-                    surface = self.fullwidth_to_halfwidth(row[0])
-                    # IME入力に最適な「仮名形出現形（row[24]）」を最優先。長音記号化を防ぎつつ、砕けた発音もカバー
-                    reading_katakana = row[24] if (len(row) > 24 and row[24] != "*") else ""
-                    if not reading_katakana:
-                        # フォールバック1: 語彙素読み（標準読み）
-                        reading_katakana = row[10] if (len(row) > 10 and row[10] != "*") else ""
-                    if not reading_katakana:
-                        # フォールバック2: 語形読み（実際の発音）
-                        reading_katakana = row[13] if (len(row) > 13 and row[13] != "*") else ""
-                    
-                    if not reading_katakana: continue
-                    
-                    reading = self.katakana_to_hiragana(reading_katakana)
-                    
-                    # 改善点2: 事前準備した正規表現を使ってクレンジング
-                    reading = self.re_clean_reading.sub('', reading)
-                    if not reading: continue
-                    
-                    # 読みと表記が同じ（ひらがなのみ）はスキップ
-                    if reading == surface: continue
-                    
-                    # 改善点5: 平仮名1文字 -> アルファベット1文字の単純マッピングを排除 (あ->A等)
-                    if len(reading) == 1 and len(surface) == 1 and surface.isascii() and surface.isalpha():
-                        continue
-                    
-                    # 品詞マッピング
-                    pos = self.map_pos_mozc(row)
-                    
-                    # 重複チェック
-                    entry_key = (reading, surface, pos)
-                    if entry_key in unique_entries: continue
-                    
-                    # コメント作成 (語種 + 語彙素)
-                    goshu = row[17] # len(row) < 18 は上で弾いているため安全
-                    lemma = self.fullwidth_to_halfwidth(row[11]) # 語彙素
-                    cost = row[3] # 単語生起コスト (出現しやすさのスコア)
-                    comment = f"UniDic [{goshu}] / {lemma}"
-                    
-                    # コスト（頻度順位）を第5カラムとして出力
-                    f_out.write(f"{reading}\t{surface}\t{pos}\t{comment}\t{cost}\n")
-                    unique_entries.add(entry_key)
-                    written += 1
+            with open(csv_path, "r", encoding="utf-8", newline='') as f_in:
+                with open(output_file, "w", encoding="utf-8", newline='') as f_out:
+                    reader = csv.reader(f_in)
+                    for row in reader:
+                        stats["processed"] = stats["processed"] + 1
+                        if stats["processed"] % 100000 == 0:
+                            print(f"\r  Scanned {stats['processed']}... Saved {stats['written']}", end="", flush=True)
+                        
+                        if len(row) < 18: continue
+                        
+                        # ノイズ判定
+                        if self.is_noise(row): continue
+                        
+                        surface = self.fullwidth_to_halfwidth(row[0])
+                        # IME入力に最適な「仮名形出現形（row[24]）」を最優先。長音記号化を防ぎつつ、砕けた発音もカバー
+                        reading_katakana = row[24] if (len(row) > 24 and row[24] != "*") else ""
+                        if not reading_katakana:
+                            # フォールバック1: 語彙素読み（標準読み）
+                            reading_katakana = row[10] if (len(row) > 10 and row[10] != "*") else ""
+                        if not reading_katakana:
+                            # フォールバック2: 語形読み（実際の発音）
+                            reading_katakana = row[13] if (len(row) > 13 and row[13] != "*") else ""
+                        
+                        if not reading_katakana: continue
+                        
+                        reading = self.katakana_to_hiragana(reading_katakana)
+                        
+                        # 改善点2: 事前準備した正規表現を使ってクレンジング
+                        reading = self.re_clean_reading.sub('', reading)
+                        if not reading: continue
+                        
+                        # 読みと表記が同じ（ひらがなのみ）はスキップ
+                        if reading == surface: continue
+                        
+                        # 改善点5: 平仮名1文字 -> アルファベット1文字の単純マッピングを排除 (あ->A等)
+                        if len(reading) == 1 and len(surface) == 1 and surface.isascii() and surface.isalpha():
+                            continue
+                        
+                        # 品詞マッピング
+                        pos = self.map_pos_mozc(row)
+                        
+                        # 重複チェック
+                        entry_key = (reading, surface, pos)
+                        if entry_key in unique_entries: continue
+                        
+                        # コメント作成 (語種 + 語彙素)
+                        goshu = row[17] # len(row) < 18 は上で弾いているため安全
+                        lemma = self.fullwidth_to_halfwidth(row[11]) # 語彙素
+                        cost = row[3] # 単語生起コスト (出現しやすさのスコア)
+                        comment = f"UniDic [{goshu}] / {lemma}"
+                        
+                        # コスト（頻度順位）を第5カラムとして出力
+                        f_out.write(f"{reading}\t{surface}\t{pos}\t{comment}\t{cost}\n")
+                        unique_entries.add(entry_key)
+                        stats["written"] = stats["written"] + 1
                     
         except Exception as e:
             print(f"\nError processing {csv_path}: {e}")
             return
 
-        print(f"\nFinished. Scanned: {processed}, Unique Practical Words: {written}")
+        print(f"\nFinished. Scanned: {stats['processed']}, Unique Practical Words: {stats['written']}")
         print(f"Result saved to: {output_file}")
 
 if __name__ == "__main__":
