@@ -1,6 +1,6 @@
 # UniDic to Mozc Integration
 
-**「法務・運用・品質」の課題を解決した、Mozc 拡張辞書システム**
+**「法務・運用・品質」の課題を解決した、Mozc 拡張辞書システムとユーザー辞書**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![License: BSD-3](https://img.shields.io/badge/License-BSD--3-orange.svg)](UNIDIC_LICENSE.txt)
