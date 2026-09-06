@@ -37,8 +37,11 @@ class UnidicConverter:
         # 外部設定の読み込み
         self.pos_rules = []
         self.default_mapping = {}
-        # 語種（goshu）によるノイズ判定。UniDic の語種は 和/漢/外/混/固/記号/不明。
-        self.noise_goshu = {"記号"}
+        # 語種（goshu）によるノイズ判定。UniDic の語種は 和/漢/外/混/固/記号/不明/※。
+        # 既定では無効。「記号」には VR・PK・GLP のような英字略語（p1=名詞）が
+        # 3,000語以上含まれており、落とすとIMEに有用な語彙を失う。真の記号は
+        # is_noise() の p1=補助記号/記号 の判定で既に除外される。
+        self.noise_goshu = set()
         if config_path and os.path.exists(config_path) and self.load_config(config_path):
             print(f"[*] Loaded POS mapping config: {config_path}")
 
