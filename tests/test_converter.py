@@ -111,13 +111,26 @@ class GoshuColumnTest(unittest.TestCase):
     def test_goshu_index_is_16(self):
         self.assertEqual(convert_unidic.COL_GOSHU, 16)
 
-    def test_symbol_goshu_is_dropped(self):
+    def test_alphabet_acronyms_survive_by_default(self):
+        """UniDic は VR・PK 等の英字略語の語種を「記号」とする。既定では落とさない。"""
         rows = [
-            lex_row("〄", goshu="記号", kana="キゴウ"),
-            lex_row("星", goshu="和", kana="ホシ"),
+            lex_row("VR", goshu="記号", kana="ブイアール"),
+            lex_row("ジーエス", goshu="記号", kana="ジーエス"),
+            lex_row("★", p1="補助記号", goshu="記号", kana="ホシジルシ"),
         ]
         with tempfile.TemporaryDirectory() as d:
             got = [r[1] for r in run_convert(rows, d)]
+        self.assertEqual(got, ["VR", "ジーエス"], "英字略語まで落ちている")
+
+    def test_noise_goshu_can_be_enabled_via_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = os.path.join(d, "c.json")
+            with open(cfg, "w", encoding="utf-8") as f:
+                json.dump({"noise_goshu": ["記号"], "pos_rules": [],
+                           "default_mapping": {"名詞": "名詞"}}, f)
+            rows = [lex_row("VR", goshu="記号", kana="ブイアール"),
+                    lex_row("星", goshu="和", kana="ホシ")]
+            got = [r[1] for r in run_convert(rows, d, cfg)]
         self.assertEqual(got, ["星"])
 
     def test_comment_carries_real_goshu(self):
