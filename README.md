@@ -59,12 +59,24 @@
 
 ```bash
 # 1. 各辞典の抽出と最適化変換
-python converter_scripts/convert_unidic.py "path/to/cwj/lex.csv" "./output_tsvs"
-python converter_scripts/convert_unidic.py "path/to/csj/lex.csv" "./output_tsvs"
+#    -o で出力ファイル名を明示指定します（省略すると lex.csv の親ディレクトリ名から
+#    導出されるため、両コーパスを同名ディレクトリに置いていると上書きされます）
+python converter_scripts/convert_unidic.py "path/to/unidic-cwj/lex.csv" "./output_tsvs" -o mozc_cwj.tsv
+python converter_scripts/convert_unidic.py "path/to/unidic-csj/lex.csv" "./output_tsvs" -o mozc_csj.tsv
 
 # 2. 統合・重複排除と10万語分割出力
-# ※ 出力された各TSVを指定して統合
+#    入力は3つ以上でも指定できます。最後の引数が出力先です（ディレクトリは自動作成）
 python converter_scripts/merge_unidics.py "./output_tsvs/mozc_cwj.tsv" "./output_tsvs/mozc_csj.tsv" "output/mozc_unidic_merged.tsv"
+```
+
+出力される TSV は Mozc ユーザー辞書の `読み / 表記 / 品詞 / コメント` の4列です。コメント列（`UniDic [語種] / 語彙素`）が不要な場合は `--no-comment` を付けてください。
+
+### テストの実行
+
+品詞マッピングと分割ロジックの回帰テストが付属しています（標準ライブラリのみ）。
+
+```bash
+python -m unittest discover -s tests
 ```
 
 > [!TIP]
