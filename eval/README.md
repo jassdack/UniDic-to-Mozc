@@ -1,4 +1,38 @@
-# eval — 辞書品質の測定
+# eval — Mozc ユーザー辞書の測定ツール
+
+> [!NOTE]
+> **このツール群は、任意の Mozc ユーザー辞書に使えます。** 本プロジェクトの辞書に
+> 限りません。`読み / 表記 / 品詞 / コメント` の4列 TSV であれば対象にできます。
+> 自作の辞書、他プロジェクトの辞書（mozc-ut 等）の評価にもそのまま使えます。
+
+## できること
+
+| スクリプト | 測るもの | Mozc の起動 |
+| :--- | :--- | :--- |
+| `measure_injection.py` | 辞書が各読みに何件の候補を注入するか | 不要 |
+| `measure_conversion.py` | 辞書の有無で第1候補がどう変わるか | **必要** |
+| `measure_coverage.py` | 辞書のうち何割が Mozc に無い語か | **必要** |
+| `scan_system_coverage.py` | 全件走査して重複登録を洗い出す | **必要** |
+
+## 手早く試す
+
+```bash
+# 1. 静的な測定（依存なし・すぐ動く）
+python eval/measure_injection.py YOUR_DICT.tsv --testset YOUR_TESTSET.tsv
+
+# 2. 実変換の測定（Windows。対象辞書を Mozc にインポートしておく）
+pip install grpcio-tools
+python eval/fetch_mozc_protos.py
+python eval/measure_conversion.py --testset YOUR_TESTSET.tsv
+```
+
+テストセットは `読み<TAB>期待表記<TAB>カテゴリ` の3列です。カテゴリ名は任意で、
+集計の見出しに使われるだけです。同梱の `testset_words.tsv`（124件）が雛形になります。
+
+---
+
+# 測定の考え方
+
 
 ## 何を測るか
 
