@@ -381,5 +381,126 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(results - known, set())
 
 
+class MergePosFilterTest(unittest.TestCase):
+    """--exclude-pos / --only-pos。既定配布は人名を除外する（eval/ の測定結果に基づく）。"""
+
+    ROWS = [
+        "ほし\t星\t名詞\tA\t4000",
+        "たなか\t田中\t人名\tB\t3000",
+        "たなか\t田中\t地名\tC\t3500",
+        "おおさか\t大阪\t地名\tD\t2000",
+    ]
+
+    def _merge(self, d, **kw):
+        a = os.path.join(d, "a.tsv")
+        with open(a, "w", encoding="utf-8") as f:
+            f.writelines(l + "\n" for l in self.ROWS)
+        out = os.path.join(d, "m.tsv")
+        with redirect_stdout(io.StringIO()):
+            rc = merge_unidics.merge_unidics([a], out, **kw)
+        self.assertEqual(rc, 0)
+        with open(os.path.join(d, "m_1.tsv"), encoding="utf-8") as f:
+            return [l.rstrip("\n").split("\t") for l in f]
+
+    def test_no_filter_keeps_everything(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(len(self._merge(d)), 4)
+
+    def test_exclude_pos_drops_only_that_pos(self):
+        with tempfile.TemporaryDirectory() as d:
+            rows = self._merge(d, exclude_pos=["人名"])
+        self.assertEqual(len(rows), 3)
+        self.assertNotIn("人名", [r[2] for r in rows])
+
+    def test_excluding_names_keeps_surface_supplied_by_another_pos(self):
+        """田中は地名としても収録されている。人名を落としても表記自体は残る。"""
+        with tempfile.TemporaryDirectory() as d:
+            rows = self._merge(d, exclude_pos=["人名"])
+        self.assertIn("田中", [r[1] for r in rows])
+
+    def test_only_pos_keeps_just_that_pos(self):
+        with tempfile.TemporaryDirectory() as d:
+            rows = self._merge(d, only_pos=["人名"])
+        self.assertEqual([(r[1], r[2]) for r in rows], [("田中", "人名")])
+
+    def test_multiple_pos_are_comma_separated(self):
+        with tempfile.TemporaryDirectory() as d:
+            rows = self._merge(d, exclude_pos=["人名", "地名"])
+        self.assertEqual([r[1] for r in rows], ["星"])
+
+    def test_exclude_and_only_conflict(self):
+        with self.assertRaises(ValueError):
+            merge_unidics.build_pos_filter(["人名"], ["地名"])
+
+    def test_filtering_everything_out_is_an_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = os.path.join(d, "a.tsv")
+            with open(a, "w", encoding="utf-8") as f:
+                f.write("ほし\t星\t名詞\tA\t4000\n")
+            with redirect_stdout(io.StringIO()):
+                rc = merge_unidics.merge_unidics([a], os.path.join(d, "m.tsv"),
+                                                 exclude_pos=["名詞"])
+        self.assertEqual(rc, 1)
+
+    def test_misspelled_pos_is_warned_not_silently_ignored(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = os.path.join(d, "a.tsv")
+            with open(a, "w", encoding="utf-8") as f:
+                f.write("ほし\t星\t名詞\tA\t4000\n")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                merge_unidics.merge_unidics([a], os.path.join(d, "m.tsv"),
+                                            exclude_pos=["人明"])
+        self.assertIn("人明", buf.getvalue())
+
+
+class MergePosFilterCliTest(unittest.TestCase):
+    """値を取るオプションでも、位置引数のどこに置いても動くこと。"""
+
+    def _run(self, argv, d):
+        a = os.path.join(d, "a.tsv")
+        with open(a, "w", encoding="utf-8") as f:
+            f.write("ほし\t星\t名詞\tA\t4000\n")
+            f.write("たなか\t田中\t人名\tB\t3000\n")
+        out = os.path.join(d, "m.tsv")
+        with redirect_stdout(io.StringIO()):
+            rc = merge_unidics.main([x.format(a=a, out=out) for x in argv])
+        self.assertEqual(rc, 0)
+        with open(os.path.join(d, "m_1.tsv"), encoding="utf-8") as f:
+            return [l.rstrip("\n").split("\t")[1] for l in f]
+
+    def test_flag_before_positionals(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["--exclude-pos", "人名", "{a}", "{out}"], d), ["星"])
+
+    def test_flag_between_positionals(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["{a}", "--exclude-pos", "人名", "{out}"], d), ["星"])
+
+    def test_flag_after_positionals(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["{a}", "{out}", "--exclude-pos", "人名"], d), ["星"])
+
+    def test_equals_form_is_accepted(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["{a}", "{out}", "--exclude-pos=人名"], d), ["星"])
+
+    def test_only_pos_via_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["--only-pos", "人名", "{a}", "{out}"], d), ["田中"])
+
+    def test_combined_with_no_comment(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(
+                self._run(["{a}", "--exclude-pos", "人名", "--no-comment", "{out}"], d),
+                ["星"])
+
+    def test_exclude_and_only_are_mutually_exclusive(self):
+        with self.assertRaises(SystemExit):
+            with redirect_stdout(io.StringIO()):
+                merge_unidics.main(["--exclude-pos", "人名", "--only-pos", "地名",
+                                    "a.tsv", "out.tsv"])
+
+
 if __name__ == "__main__":
     unittest.main()
