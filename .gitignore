@@ -32,3 +32,6 @@ env/
 
 # eval/ が生成する Mozc の protobuf（google/mozc から取得。再配布しない）
 eval/_mozc_proto/
+# 走査の生成物（Mozc のバージョンに紐づくため追跡しない）
+eval/system_covered.tsv
+eval/system_covered.tsv.progress
