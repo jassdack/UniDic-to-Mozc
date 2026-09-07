@@ -676,8 +676,13 @@ class MergeLimitTest(unittest.TestCase):
             self.assertEqual(self._run(["--limit", "10"], 25, d),
                              ["m_1.tsv", "m_2.tsv", "m_3.tsv"])
 
-    def test_default_limit_is_unchanged(self):
-        self.assertEqual(merge_unidics.LIMIT, 100000)
+    def test_default_limit_matches_the_mozc_maximum(self):
+        """既定では分割しない。Mozc の上限を超えたときだけ分割する。"""
+        self.assertEqual(merge_unidics.LIMIT, merge_unidics.MOZC_MAX_ENTRY_SIZE)
+
+    def test_default_keeps_a_realistic_dictionary_in_one_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run([], 500, d), ["m_1.tsv"])
 
     def test_limit_above_mozc_maximum_warns(self):
         with tempfile.TemporaryDirectory() as d:

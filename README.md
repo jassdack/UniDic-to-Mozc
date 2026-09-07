@@ -32,17 +32,16 @@
 2. Mozc または Google 日本語入力の「辞書ツール」を開きます。
 3. 「管理」>「新規辞書にインポート」を選択します。
 4. 解凍した `mozc_unidic_merged_1.tsv` を指定し、インポートを実行します。
-5. 同様の手順で `_2.tsv`、`_3.tsv` を順番にインポートします（既定辞書は全3ファイル）。
 
 #### 人名辞書（任意）
 
 人名を多く入力する場合は、`mozc_unidic_names_*.zip` を同じ手順で**別の辞書として**追加インポートしてください。別辞書に分けておくと、変換候補が煩雑に感じたときに辞書ツールから一括で無効化できます。
 
-> [!IMPORTANT]
-> [!IMPORTANT]
-> 配布辞書は 100,000 語ごとに分割されています。全語彙を取り込むため、分割されたすべてのファイルをインポートしてください。
->
-> **補足: Mozc の実際の上限は 1,000,000 語です。** 以前このプロジェクトは「1ファイル最大10万語」と説明していましたが、これは誤りでした。Mozc のソース（[`src/dictionary/user_dictionary_storage.cc`](https://github.com/google/mozc/blob/master/src/dictionary/user_dictionary_storage.cc)）では `kMaxEntrySize = 1000000` が1辞書あたりの上限で、インポート経路も同じ値を使います。したがって現在の 267,413 語は本来1ファイルに収まります。分割幅は `merge_unidics.py --limit` で変更できます。
+> [!NOTE]
+> **辞書は1ファイルです。** 以前は「Mozc のユーザー辞書は1ファイル最大10万語」という前提で分割配布していましたが、これは誤りでした。
+> 実際の上限は1辞書あたり **1,000,000 語**です（[`src/dictionary/user_dictionary_storage.cc`](https://github.com/google/mozc/blob/master/src/dictionary/user_dictionary_storage.cc) の `kMaxEntrySize`。インポート経路も同じ値を使います）。
+> Mozc 3.33.6089.100 へ 267,413 語を1ファイルでインポートできることを実機で確認済みです。
+> 100万語を超える辞書を作る場合のみ分割されます（`merge_unidics.py --limit` で変更可）。
 
 ---
 
@@ -73,7 +72,7 @@
 python converter_scripts/convert_unidic.py "path/to/unidic-cwj/lex.csv" "./output_tsvs" -o mozc_cwj.tsv
 python converter_scripts/convert_unidic.py "path/to/unidic-csj/lex.csv" "./output_tsvs" -o mozc_csj.tsv
 
-# 2. 統合・重複排除と分割出力（既定は10万語ごと。--limit で変更可）
+# 2. 統合・重複排除（既定では分割しない。100万語超のみ分割。--limit で変更可）
 #    入力は3つ以上でも指定できます。最後の引数が出力先です（ディレクトリは自動作成）
 #    --exclude-pos で品詞を落とせます（既定配布は人名を除外）
 python converter_scripts/merge_unidics.py --exclude-pos 人名 \
@@ -149,7 +148,7 @@ python eval/measure_injection.py path/to/mozc_unidic_merged_?.tsv --exclude-pos 
 | 同音異義語カテゴリの競合数 | 31.1 | **24.9** |
 | 注入1件あたりの有用率 | 8.5% | **11.4%** |
 | 期待表記をカバーできた読み | 116 / 124 | **116 / 124** |
-| 分割ファイル数 | 4 | **3** |
+| 分割ファイル数 | 4 | **1** |
 
 人名の除外によって**カバレッジは1件も落ちず**、競合だけが約25%減ります。測定の前提と限界は [`eval/README.md`](eval/README.md) を参照してください。
 
