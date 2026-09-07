@@ -323,6 +323,47 @@ class MergeTest(unittest.TestCase):
             merge_unidics.LIMIT = original
 
 
+class MergeCliTest(unittest.TestCase):
+    """--no-comment を位置引数のどこに置いても動くこと。"""
+
+    def _run(self, argv, d):
+        a = os.path.join(d, "a.tsv")
+        with open(a, "w", encoding="utf-8") as f:
+            f.write("ほし\t星\t名詞\tUniDic [和] / 星\t4000\n")
+        out = os.path.join(d, "m.tsv")
+        with redirect_stdout(io.StringIO()):
+            rc = merge_unidics.main([x.format(a=a, out=out) for x in argv])
+        self.assertEqual(rc, 0)
+        with open(os.path.join(d, "m_1.tsv"), encoding="utf-8") as f:
+            return f.readline().rstrip("\n").split("\t")
+
+    def test_flag_before_positionals(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["--no-comment", "{a}", "{out}"], d)[3], "")
+
+    def test_flag_between_positionals(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["{a}", "--no-comment", "{out}"], d)[3], "")
+
+    def test_flag_after_positionals(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["{a}", "{out}", "--no-comment"], d)[3], "")
+
+    def test_comment_kept_without_flag(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["{a}", "{out}"], d)[3], "UniDic [和] / 星")
+
+    def test_unknown_flag_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            with redirect_stdout(io.StringIO()):
+                merge_unidics.main(["--no-coment", "a.tsv", "out.tsv"])
+
+    def test_too_few_paths_is_an_error(self):
+        with self.assertRaises(SystemExit):
+            with redirect_stdout(io.StringIO()):
+                merge_unidics.main(["only-one.tsv"])
+
+
 class ConfigTest(unittest.TestCase):
     def test_shipped_config_only_emits_documented_pos(self):
         """result の文字列が config/mozc_pos_list.md の見出しと一致していること。"""
