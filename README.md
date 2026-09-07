@@ -71,6 +71,27 @@ python converter_scripts/merge_unidics.py "./output_tsvs/mozc_cwj.tsv" "./output
 
 出力される TSV は Mozc ユーザー辞書の `読み / 表記 / 品詞 / コメント` の4列です。コメント列（`UniDic [語種] / 語彙素`）が不要な場合は `--no-comment` を付けてください。
 
+### リリース用辞書のビルド
+
+[Releases](https://github.com/jassdack/UniDic-to-Mozc/releases) で配布している辞書は、以下の手順で生成しています。UniDic は **`_full` 版**（`lex.csv` を含むソース配布）が必要です。解析用軽量版には `lex.csv` が含まれません。
+
+```bash
+# UniDic CWJ / CSJ の _full 版から lex.csv を取り出す
+unzip -j unidic-cwj-<version>_full.zip lex.csv -d unidic-cwj/
+unzip -j unidic-csj-<version>_full.zip lex.csv -d unidic-csj/
+
+# 変換
+python converter_scripts/convert_unidic.py unidic-cwj/lex.csv ./tsv -o mozc_cwj.tsv
+python converter_scripts/convert_unidic.py unidic-csj/lex.csv ./tsv -o mozc_csj.tsv
+
+# 統合。配布物はファイルサイズを優先してコメント列を空にしている
+python converter_scripts/merge_unidics.py --no-comment \
+  tsv/mozc_cwj.tsv tsv/mozc_csj.tsv merged/mozc_unidic_merged.tsv
+
+# 配布用 zip（4分割TSV + ライセンス）
+zip -9 mozc_unidic_merged_vX.Y.Z.zip merged/mozc_unidic_merged_?.tsv UNIDIC_LICENSE.txt
+```
+
 ### テストの実行
 
 品詞マッピングと分割ロジックの回帰テストが付属しています（標準ライブラリのみ）。

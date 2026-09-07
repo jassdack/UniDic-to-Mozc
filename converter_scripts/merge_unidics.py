@@ -94,12 +94,23 @@ def merge_unidics(input_paths, output_path, with_comment=True):
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="convert_unidic.py が生成した中間TSVを統合し、10万語ごとに分割出力します。")
-    parser.add_argument("inputs", nargs="+", help="中間TSV（2つ以上指定可）")
-    parser.add_argument("output", help="出力TSVのベースパス（_1.tsv, _2.tsv ... が付与されます）")
     parser.add_argument("--no-comment", action="store_true",
                         help="コメント列を空にする（ファイルサイズ優先）")
-    args = parser.parse_args(argv)
-    return merge_unidics(args.inputs, args.output, with_comment=not args.no_comment)
+    parser.add_argument("paths", nargs="*", metavar="INPUT [INPUT ...] OUTPUT",
+                        help="中間TSV（2つ以上指定可）と、最後に出力TSVのベースパス"
+                             "（_1.tsv, _2.tsv ... が付与されます）")
+    # 可変長の位置引数の途中にオプションを挟む（a.tsv --no-comment out.tsv）と
+    # argparse は位置引数を2グループに割ってしまい、片方しか受け取れない。
+    # parse_known_args で残りを回収し、オプションの位置に依存しないようにする。
+    args, extra = parser.parse_known_args(argv)
+    unknown_flags = [x for x in extra if x.startswith("-")]
+    if unknown_flags:
+        parser.error(f"unrecognized arguments: {' '.join(unknown_flags)}")
+    paths = args.paths + extra
+    if len(paths) < 2:
+        parser.error("入力の中間TSVと出力パスを指定してください")
+    *inputs, output = paths
+    return merge_unidics(inputs, output, with_comment=not args.no_comment)
 
 
 if __name__ == "__main__":
