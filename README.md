@@ -88,6 +88,8 @@ python converter_scripts/merge_unidics.py --exclude-pos 人名 \
 | `--exclude-pos POS[,POS...]` | 指定した品詞を出力から除外する（例: `--exclude-pos 人名`） |
 | `--only-pos POS[,POS...]` | 指定した品詞のみを出力する（例: `--only-pos 人名`） |
 | `--no-comment` | コメント列（`UniDic [語種] / 語彙素`）を空にする |
+| `--exclude-list FILE` | `FILE` に列挙された `読み<TAB>表記` を除外する。Mozc が元から出せる語を落として差分辞書を作るのに使う |
+| `--limit N` | 1ファイルあたりの語数上限（既定 1,000,000 = Mozc の上限） |
 
 いずれも位置引数のどこに置いても動作します。指定した品詞が入力に1件も無い場合は警告が出るため、綴り誤りが黙って無視されることはありません。品詞名は [`config/mozc_pos_list.md`](config/mozc_pos_list.md) の見出しと一致させてください。
 
