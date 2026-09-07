@@ -715,5 +715,90 @@ class MergeLimitTest(unittest.TestCase):
                 ["m_1.tsv", "m_2.tsv", "m_3.tsv"])
 
 
+class ExcludeListTest(unittest.TestCase):
+    """--exclude-list。Mozc が元から出せる語を落として差分辞書を作るためのもの。"""
+
+    ROWS = [
+        "ほし\t星\t名詞\tA\t4000",
+        "こうじ\t工事\t名詞サ変\tB\t3000",
+        "あばきもとむ\t発き求\t動詞マ行五段\tC\t9000",
+    ]
+
+    def _write(self, path, lines):
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(l + "\n" for l in lines)
+
+    def _merge(self, d, exclude_lines=None, via_cli=False):
+        a = os.path.join(d, "a.tsv")
+        self._write(a, self.ROWS)
+        out = os.path.join(d, "m.tsv")
+        argv_extra = []
+        pairs = None
+        if exclude_lines is not None:
+            lst = os.path.join(d, "ex.tsv")
+            self._write(lst, exclude_lines)
+            if via_cli:
+                argv_extra = ["--exclude-list", lst]
+            else:
+                pairs = merge_unidics.load_exclude_list(lst)
+        with redirect_stdout(io.StringIO()):
+            if via_cli:
+                rc = merge_unidics.main(argv_extra + [a, out])
+            else:
+                rc = merge_unidics.merge_unidics([a], out, exclude_pairs=pairs)
+        self.assertEqual(rc, 0)
+        with open(os.path.join(d, "m_1.tsv"), encoding="utf-8") as f:
+            return [l.rstrip("\n").split("\t")[1] for l in f]
+
+    def test_without_list_everything_is_kept(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(sorted(self._merge(d)), sorted(["星", "工事", "発き求"]))
+
+    def test_listed_pairs_are_dropped(self):
+        with tempfile.TemporaryDirectory() as d:
+            got = self._merge(d, ["ほし\t星\t名詞", "こうじ\t工事\t名詞サ変"])
+        self.assertEqual(got, ["発き求"])
+
+    def test_two_column_list_is_accepted(self):
+        """品詞列は無視する。Mozc の網羅性は 読み->表記 の話なので。"""
+        with tempfile.TemporaryDirectory() as d:
+            got = self._merge(d, ["ほし\t星"])
+        self.assertEqual(sorted(got), sorted(["工事", "発き求"]))
+
+    def test_pos_mismatch_does_not_prevent_exclusion(self):
+        with tempfile.TemporaryDirectory() as d:
+            got = self._merge(d, ["こうじ\t工事\t全然ちがう品詞"])
+        self.assertNotIn("工事", got)
+
+    def test_surface_must_match_too(self):
+        with tempfile.TemporaryDirectory() as d:
+            got = self._merge(d, ["こうじ\t公示"])
+        self.assertIn("工事", got)
+
+    def test_blank_and_short_lines_are_ignored(self):
+        with tempfile.TemporaryDirectory() as d:
+            got = self._merge(d, ["", "ほし", "ほし\t星"])
+        self.assertEqual(sorted(got), sorted(["工事", "発き求"]))
+
+    def test_via_cli(self):
+        with tempfile.TemporaryDirectory() as d:
+            got = self._merge(d, ["ほし\t星\t名詞"], via_cli=True)
+        self.assertEqual(sorted(got), sorted(["工事", "発き求"]))
+
+    def test_missing_list_file_is_an_error(self):
+        with self.assertRaises(SystemExit):
+            with redirect_stdout(io.StringIO()):
+                merge_unidics.main(["--exclude-list", "nope.tsv", "a.tsv", "o.tsv"])
+
+    def test_excluding_everything_is_an_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = os.path.join(d, "a.tsv")
+            self._write(a, ["ほし\t星\t名詞\tA\t4000"])
+            with redirect_stdout(io.StringIO()):
+                rc = merge_unidics.merge_unidics(
+                    [a], os.path.join(d, "m.tsv"), exclude_pairs={("ほし", "星")})
+        self.assertEqual(rc, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

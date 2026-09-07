@@ -14,19 +14,21 @@ LIMIT = MOZC_MAX_ENTRY_SIZE
 DEFAULT_COST = 99999
 
 
-def load_file(path, dictionary, accept=None, pos_seen=None):
+def load_file(path, dictionary, accept=None, pos_seen=None, exclude_pairs=None):
     """中間TSVを読み込み、(reading, surface, pos) -> {cost, comment} に集約する。
 
     accept: 品詞を受け取り採否を返す述語。None なら全採用。
     pos_seen: 出現した品詞を記録する集合（フィルタ指定の綴り誤りを検出するため）。
-    返り値は (採用行数, 品詞フィルタで落とした行数)。ファイルが無い場合は None。
+    exclude_pairs: 除外する (読み, 表記) の集合。None なら除外しない。
+    返り値は (採用行数, 品詞で落とした行数, 除外リストで落とした行数)。
+    ファイルが無い場合は None。
     """
     if not os.path.exists(path):
         print(f"Warning: {path} not found.")
         return None
 
     print(f"Processing: {path}")
-    loaded = skipped = 0
+    loaded = skipped = excluded = 0
     with open(path, 'r', encoding='utf-8-sig') as f:
         for line in f:
             line = line.rstrip('\n').rstrip('\r')
@@ -40,6 +42,9 @@ def load_file(path, dictionary, accept=None, pos_seen=None):
                 pos_seen.add(pos)
             if accept is not None and not accept(pos):
                 skipped += 1
+                continue
+            if exclude_pairs is not None and (reading, surface) in exclude_pairs:
+                excluded += 1
                 continue
 
             cost = DEFAULT_COST
@@ -58,7 +63,21 @@ def load_file(path, dictionary, accept=None, pos_seen=None):
                 # より頻出（低コスト）な出典側の情報を採用する
                 existing["cost"] = cost
                 existing["comment"] = comment
-    return loaded, skipped
+    return loaded, skipped, excluded
+
+
+def load_exclude_list(path):
+    """(読み, 表記) の除外リストを読む。3列目以降は無視する。
+
+    eval/scan_system_coverage.py の出力をそのまま渡せる。
+    """
+    pairs = set()
+    with open(path, 'r', encoding='utf-8-sig') as f:
+        for line in f:
+            cols = line.rstrip('\n').rstrip('\r').split('\t')
+            if len(cols) >= 2 and cols[0] and cols[1]:
+                pairs.add((cols[0], cols[1]))
+    return pairs
 
 
 def build_pos_filter(exclude_pos=(), only_pos=()):
@@ -74,7 +93,7 @@ def build_pos_filter(exclude_pos=(), only_pos=()):
 
 
 def merge_unidics(input_paths, output_path, with_comment=True,
-                  exclude_pos=(), only_pos=(), limit=None):
+                  exclude_pos=(), only_pos=(), limit=None, exclude_pairs=None):
     # key: (reading, surface, pos) -> {"cost": int, "comment": str}
     dictionary = {}
     limit = LIMIT if limit is None else limit
@@ -87,12 +106,13 @@ def merge_unidics(input_paths, output_path, with_comment=True,
     pos_seen = set()
 
     found_any = False
-    total_skipped = 0
+    total_skipped = total_excluded = 0
     for path in input_paths:
-        result = load_file(path, dictionary, accept, pos_seen)
+        result = load_file(path, dictionary, accept, pos_seen, exclude_pairs)
         if result is not None:
             found_any = True
             total_skipped += result[1]
+            total_excluded += result[2]
 
     if not found_any:
         print("Error: none of the input files could be read.")
@@ -107,6 +127,9 @@ def merge_unidics(input_paths, output_path, with_comment=True,
     if total_skipped:
         kind = "only-pos" if only_pos else "exclude-pos"
         print(f"POS filter ({kind}): dropped {total_skipped:,} entries.")
+
+    if total_excluded:
+        print(f"Exclude list: dropped {total_excluded:,} entries.")
 
     print(f"Merging and splitting. Max {limit:,} entries per file.")
 
@@ -158,6 +181,10 @@ def main(argv=None):
                            help="指定した品詞を出力から除外する（例: --exclude-pos 人名）")
     pos_group.add_argument("--only-pos", default="", metavar="POS[,POS...]",
                            help="指定した品詞のみを出力する（例: --only-pos 人名）")
+    parser.add_argument("--exclude-list", default=None, metavar="FILE",
+                        help="(読み, 表記) の除外リスト。Mozc が元から出せる語を"
+                             "落として差分辞書を作るのに使う"
+                             "（eval/scan_system_coverage.py の出力）")
     parser.add_argument("--limit", type=int, default=LIMIT, metavar="N",
                         help=f"1ファイルあたりの語数上限（既定 {LIMIT:,}）。"
                              f"Mozc の上限は {MOZC_MAX_ENTRY_SIZE:,} 語なので、"
@@ -176,11 +203,19 @@ def main(argv=None):
     if len(paths) < 2:
         parser.error("入力の中間TSVと出力パスを指定してください")
     *inputs, output = paths
+    exclude_pairs = None
+    if args.exclude_list:
+        if not os.path.exists(args.exclude_list):
+            parser.error(f"除外リストが見つかりません: {args.exclude_list}")
+        exclude_pairs = load_exclude_list(args.exclude_list)
+        print(f"Exclude list: {len(exclude_pairs):,} pairs from {args.exclude_list}")
+
     return merge_unidics(inputs, output,
                          with_comment=not args.no_comment,
                          exclude_pos=_split_pos(args.exclude_pos),
                          only_pos=_split_pos(args.only_pos),
-                         limit=args.limit)
+                         limit=args.limit,
+                         exclude_pairs=exclude_pairs)
 
 
 if __name__ == "__main__":

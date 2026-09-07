@@ -147,8 +147,29 @@ python eval/measure_coverage.py path/to/mozc_unidic_merged_1.tsv -n 2000
 品詞別では `アルファベット` の追加率が 93.8% と最も高く、`名詞サ変` は 28.0% と
 低い（＝ほとんど重複）。
 
+## 3. 重複登録の洗い出しと差分辞書
+
+測定2が示すとおり、辞書の約半分は Mozc が元から出せる語の重複登録で、
+競合を増やすだけになっています。これを全件走査して落とすことができます。
+
+```bash
+# 全エントリを走査し、Mozc が既に出せるものを列挙する（26万件で約100分）
+python eval/scan_system_coverage.py path/to/mozc_unidic_merged_1.tsv -o eval/system_covered.tsv
+
+# その結果を使って差分辞書を作る
+python converter_scripts/merge_unidics.py --exclude-list eval/system_covered.tsv   tsv/mozc_cwj.tsv tsv/mozc_csj.tsv merged/mozc_unidic_diff.tsv
+```
+
+走査は結果を逐次書き出すため、中断しても `--resume` で再開できます。
+
+> [!WARNING]
+> 走査中はユーザー辞書が空になります。異常終了した場合は
+> `user_dictionary.db.abbackup` から手動で戻してください。
+
 ## 測定の限界
 
 - テストセットは手書きの124件で、語単位です。文単位ではありません
 - 学習履歴のない新規セッションで測っています
 - Mozc のバージョン・システム辞書に依存します（測定時 3.33.6089.100）
+- 「Mozc が出せる」の判定は上位K件（既定10）に含まれるかで行っています。
+  K を変えれば重複と判定される範囲も変わります
