@@ -189,10 +189,26 @@ def _make_empty_storage(template_bytes):
 
 @contextlib.contextmanager
 def user_dictionary_disabled(client, db_path=None, backup_path=None, wait=3.0):
-    """ユーザー辞書を一時的に空にする。抜けるときに必ず元へ戻す。"""
+    """ユーザー辞書を一時的に空にする。抜けるときに必ず元へ戻す。
+
+    多重実行は禁止する。既に空へ差し替えられている状態で別のプロセスが
+    同じことをすると、「空の辞書」をバックアップして復元してしまい、
+    利用者の辞書が失われる。ロックファイルでこれを防ぐ。
+    """
     db_path = db_path or user_dictionary_path()
     if not os.path.exists(db_path):
         raise MozcError(f"user_dictionary.db が見つかりません: {db_path}")
+
+    lock_path = db_path + ".ablock"
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise MozcError(
+            f"辞書の差し替えが既に実行中です: {lock_path} / "
+            "他の測定スクリプトの終了を待ってください。"
+            "異常終了した場合はこのファイルを削除してください。") from None
+    os.write(lock_fd, str(os.getpid()).encode())
+    os.close(lock_fd)
 
     backup_path = backup_path or (db_path + ".abbackup")
     original = open(db_path, "rb").read()
@@ -207,10 +223,14 @@ def user_dictionary_disabled(client, db_path=None, backup_path=None, wait=3.0):
         client.reload(wait)
         yield
     finally:
-        with open(db_path, "wb") as f:
-            f.write(original)
-        client.reload(wait)
-        if os.path.getsize(db_path) != len(original):
-            raise MozcError(
-                f"辞書の復元に失敗しました。手動で戻してください: {backup_path}")
-        os.remove(backup_path)
+        try:
+            with open(db_path, "wb") as f:
+                f.write(original)
+            client.reload(wait)
+            if os.path.getsize(db_path) != len(original):
+                raise MozcError(
+                    f"辞書の復元に失敗しました。手動で戻してください: {backup_path}")
+            os.remove(backup_path)
+        finally:
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
