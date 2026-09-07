@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """辞書の各エントリを Mozc が「元から出せるか」を全件走査する（Windows専用）。
 
-出力は「Mozc が既に出せるエントリ」の一覧で、`merge_unidics.py --exclude-list`
-に渡すと重複登録を落とした差分辞書が作れる。
+対象は **任意の Mozc ユーザー辞書 TSV** で、本プロジェクトの辞書に限らない。
+
+出力は「Mozc が既に出せるエントリ」の一覧（`読み<TAB>表記<TAB>品詞`）。
+本プロジェクトでは `merge_unidics.py --exclude-list` に渡して重複登録を落とすが、
+形式は単純なので任意のツールで使える。
 
 > [!WARNING]
 > 走査中はユーザー辞書を空へ差し替えます。この間 IME からユーザー辞書は
@@ -120,7 +123,7 @@ def main(argv=None):
         print(f"Mozc が既に出せる: {covered:,} 件 ({covered / total * 100:.1f}%)")
         print(f"差分として残る    : {total - covered:,} 件")
     print(f"\n出力: {args.output}")
-    print("次のように使います:")
+    print("形式は 読み<TAB>表記<TAB>品詞 です。本プロジェクトの辞書なら次で使えます:")
     print(f"  python converter_scripts/merge_unidics.py --exclude-list {args.output} ...")
     return 0
 

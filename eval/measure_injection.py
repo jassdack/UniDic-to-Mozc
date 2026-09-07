@@ -11,9 +11,13 @@
     ここで言う「純ノイズ」は「誤変換を引き起こした」ではなく
     「利用者が求めない候補だけを増やした」の意味である。
 
+対象は **任意の Mozc ユーザー辞書 TSV**（`読み / 表記 / 品詞 / コメント` の4列）です。
+本プロジェクトの辞書に限りません。テストセットも自前のものを渡せます。
+
 使い方:
     python eval/measure_injection.py DICT.tsv [DICT2.tsv ...]
-    python eval/measure_injection.py --exclude-pos 人名,地名 DICT*.tsv
+    python eval/measure_injection.py DICT.tsv --testset my_testset.tsv
+    python eval/measure_injection.py DICT.tsv --exclude-pos 人名
 """
 import argparse
 import os

@@ -10,8 +10,11 @@
     追加    辞書ありでのみ上位K件に出る（＝本当の貢献）
     未達    辞書ありでも上位K件に出ない（＝登録しても届いていない）
 
+対象は **任意の Mozc ユーザー辞書 TSV** です。本プロジェクトの辞書に限りません。
+測定したい辞書を Mozc にインポートした状態で実行してください。
+
 使い方:
-    python eval/measure_coverage.py path/to/mozc_unidic_merged_1.tsv -n 2000
+    python eval/measure_coverage.py DICT.tsv -n 2000
 """
 import argparse
 import os
