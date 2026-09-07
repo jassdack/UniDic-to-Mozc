@@ -165,6 +165,15 @@ python eval/check_pos_agreement.py path/to/unidic-cwj/lex.csv path/to/unidic-csj
 > `convert_unidic.py` は、内部的な判定ロジックとして `config/pos_mapping.json` をデフォルトで読み込みます。このJSONファイルを編集することで、Pythonコードを一切触ることなく品詞マッピングのルールを書き換えることが可能です。設定項目として利用可能な品詞の一覧は、👉 [**config/mozc_pos_list.md**](config/mozc_pos_list.md) をご参照ください。
 > また、独自のJSONファイルを使用したい場合は、第3引数で直接指定できます：
 > `python converter_scripts/convert_unidic.py "path/to/lex.csv" "./output" "custom_rules.json"`
+>
+> **ノイズ判定も設定で変えられます。**
+>
+> | キー | 既定 | 効果 |
+> | :--- | :--- | :--- |
+> | `noise_pos` | `["補助記号", "記号"]` | 品詞(p1)で落とす対象。`[]` にすると `(株)` `(社)` `α` `ε` などが拾える反面、`っ->ッ` のような語も入る（UniDic CWJ で計249語） |
+> | `noise_goshu` | `[]` | 語種で落とす対象。`["記号"]` にすると `VR` `PK` 等の英字略語3,000語以上も失われるため既定は無効 |
+>
+> なお `句読点` と `顔文字` は、UniDic の該当エントリに読みが収録されていないため、`noise_pos` を空にしても出力されません。
 
 ---
 

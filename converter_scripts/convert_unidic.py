@@ -42,6 +42,11 @@ class UnidicConverter:
         # 3,000語以上含まれており、落とすとIMEに有用な語彙を失う。真の記号は
         # is_noise() の p1=補助記号/記号 の判定で既に除外される。
         self.noise_goshu = set()
+        # 品詞（p1）によるノイズ判定。既定では記号類を落とす。
+        # 外すと (株)(社)(財) やギリシャ文字（α・ε 等）が拾える一方、
+        # 「っ->ッ」「あるふぁ->㌁」のような実用性の低い語も入る（UniDic CWJ で計249語）。
+        # なお顔文字・句読点は UniDic 側に読みが無いため、外しても出力されない。
+        self.noise_pos = {"補助記号", "記号"}
         if config_path and os.path.exists(config_path) and self.load_config(config_path):
             print(f"[*] Loaded POS mapping config: {config_path}")
 
@@ -77,6 +82,8 @@ class UnidicConverter:
         self.default_mapping = config.get('default_mapping', {})
         if 'noise_goshu' in config:
             self.noise_goshu = set(config['noise_goshu'])
+        if 'noise_pos' in config:
+            self.noise_pos = set(config['noise_pos'])
         return True
 
     def _match_condition(self, rule_match, u_data):
@@ -280,7 +287,7 @@ class UnidicConverter:
 
         # 4. 極端に短い、または記号混じりのノイズ
         if len(surface) == 0: return True
-        if p1 in ["補助記号", "記号"]: return True
+        if p1 in self.noise_pos: return True
 
         return False
 

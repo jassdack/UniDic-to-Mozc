@@ -582,5 +582,68 @@ class MatchConditionOperatorTest(unittest.TestCase):
         self.assertTrue(self._match({"cForm": "*"}))
 
 
+class NoisePosConfigTest(unittest.TestCase):
+    """記号類のフィルタは noise_pos で設定できる。既定は従来どおり記号類を落とす。
+
+    mozc_pos_list.md が `記号` `句読点` `顔文字` を設定可能と案内していたが、
+    フィルタがハードコードされていたため `記号` は到達不能だった。
+    `句読点` と `顔文字` は UniDic 側に読みが無く、フィルタとは無関係に出力されない。
+    """
+
+    # (表記, p1, p2, 仮名形。None は読みなし)
+    ROWS = [
+        ("(株)", "補助記号", "一般", "カブシキガイシャ"),
+        ("α", "補助記号", "文字", "アルファ"),
+        ("(^o^)", "補助記号", "ＡＡ", None),
+        ("。", "補助記号", "句点", None),
+        ("星", "名詞", "普通名詞", "ホシ"),
+    ]
+
+    def _rows(self):
+        rows = []
+        for surface, p1, p2, kana in self.ROWS:
+            p3 = "顔文字" if p2 == "ＡＡ" else "*"
+            rows.append(lex_row(surface, p1=p1, p2=p2, p3=p3,
+                                kana=kana if kana else "*"))
+        return rows
+
+    def _run(self, noise_pos, d):
+        cfg = os.path.join(d, "c.json")
+        body = {"pos_rules": [{"match": {"p1_contains": "記号"}, "result": "記号"}],
+                "default_mapping": {"名詞": "名詞"}}
+        if noise_pos is not None:
+            body["noise_pos"] = noise_pos
+        with open(cfg, "w", encoding="utf-8") as f:
+            json.dump(body, f)
+        return run_convert(self._rows(), d, cfg)
+
+    def test_default_drops_symbols(self):
+        """既定挙動は変えない。"""
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual([r[1] for r in self._run(None, d)], ["星"])
+
+    def test_empty_noise_pos_makes_the_symbol_rule_reachable(self):
+        with tempfile.TemporaryDirectory() as d:
+            got = {r[1]: r[2] for r in self._run([], d)}
+        self.assertEqual(got.get("(株)"), "記号")
+        self.assertEqual(got.get("α"), "記号")
+
+    def test_facemarks_and_punctuation_stay_out_for_lack_of_reading(self):
+        """到達不能の原因はフィルタではなく、UniDic に読みが無いこと。"""
+        with tempfile.TemporaryDirectory() as d:
+            got = [r[1] for r in self._run([], d)]
+        self.assertNotIn("(^o^)", got)
+        self.assertNotIn("。", got)
+
+    def test_noise_pos_accepts_arbitrary_pos(self):
+        with tempfile.TemporaryDirectory() as d:
+            got = [r[1] for r in self._run(["名詞"], d)]
+        self.assertNotIn("星", got)
+
+    def test_shipped_config_keeps_the_historical_default(self):
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            self.assertEqual(set(json.load(f)["noise_pos"]), {"補助記号", "記号"})
+
+
 if __name__ == "__main__":
     unittest.main()
