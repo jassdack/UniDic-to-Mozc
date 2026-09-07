@@ -29,3 +29,6 @@ __pycache__/
 venv/
 env/
 .env
+
+# eval/ が生成する Mozc の protobuf（google/mozc から取得。再配布しない）
+eval/_mozc_proto/
