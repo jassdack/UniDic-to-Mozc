@@ -7,9 +7,10 @@ import argparse
 #     constexpr size_t kMaxEntrySize = 1000000;
 # インポート経路も同じ上限を使う（user_dictionary_importer.cc が IsDictionaryFull()
 # 経由で entries_size() >= max_entry_size() を判定する）。
-# 既定はこれより保守的な 100,000 のまま。--limit で変更できる。
+# Mozc 3.33.6089.100 に 267,413 語を1ファイルでインポートできることを実機で確認済み。
+# したがって既定では分割せず、上限を超えたときだけ分割する。--limit で変更できる。
 MOZC_MAX_ENTRY_SIZE = 1000000
-LIMIT = 100000
+LIMIT = MOZC_MAX_ENTRY_SIZE
 DEFAULT_COST = 99999
 
 
