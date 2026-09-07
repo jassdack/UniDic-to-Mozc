@@ -80,21 +80,33 @@ class UnidicConverter:
         return True
 
     def _match_condition(self, rule_match, u_data):
-        """ルールがUniDicデータに適合するか判定"""
+        """ルールがUniDicデータに適合するか判定。
+
+        キーの接尾辞で演算子を切り替える:
+          key            完全一致。リストなら「いずれかに一致」
+          key_contains   部分一致。リストなら「すべて含む」（cTypeの2条件指定用）
+          key_endswith   後方一致。リストなら「いずれかで終わる」
+                         （1つの文字列が複数の語尾を同時に持つことはないため）
+        """
         for key, expected in rule_match.items():
-            is_contains = key.endswith('_contains')
-            target_key = key[:-len('_contains')] if is_contains else key
+            if key.endswith('_contains'):
+                op, target_key = 'contains', key[:-len('_contains')]
+            elif key.endswith('_endswith'):
+                op, target_key = 'endswith', key[:-len('_endswith')]
+            else:
+                op, target_key = 'eq', key
 
             val = u_data.get(target_key, "*")
 
-            if is_contains:
-                # リストなら「すべて含む」
+            if op == 'contains':
                 if isinstance(expected, list):
                     if not all(e in val for e in expected): return False
                 else:
                     if expected not in val: return False
+            elif op == 'endswith':
+                suffixes = tuple(expected) if isinstance(expected, list) else (expected,)
+                if not val.endswith(suffixes): return False
             else:
-                # リストなら「いずれかに一致」
                 if isinstance(expected, list):
                     if val not in expected: return False
                 else:
@@ -190,8 +202,10 @@ class UnidicConverter:
             return "固有名詞"
 
         # 2. 数詞・助数詞系
+        #    p3 は「助数詞可能」の形を取るため、サ変と同様に包含で判定する。
+        #    完全一致にすると 名詞-普通名詞-助数詞可能 を取りこぼす。
         if p2 == "数詞": return "数"
-        if "助数詞" in [p2, p3]: return "助数詞"
+        if "助数詞" in p2 or "助数詞" in p3: return "助数詞"
 
         # 3. 用言系 (動詞)
         if p1 == "動詞":
@@ -212,18 +226,23 @@ class UnidicConverter:
             if p2 in ["句点", "読点"]: return "句読点"
             return "記号"
 
-        # 6. アルファベット判定（固有名詞・用言等の具体的な品詞より後段）
-        if surface.isascii() and surface.isalpha():
-            return "アルファベット"
-
-        # 7. 名詞系
-        if p1 == "名詞":
-            if "サ変" in p2 or "サ変" in p3: return "名詞サ変"
-            return "名詞"
+        # 6. UniDic が与える具体的な名詞情報。アルファベット判定より優先する。
+        #    「アルファベット」は mozc_pos_list.md では頭字語（IT, HTTP）を指すため、
+        #    サ変可能・形状詞といった具体的な情報があるならそちらを採る。
+        if p1 == "名詞" and ("サ変" in p2 or "サ変" in p3):
+            return "名詞サ変"
 
         if p1 == "形状詞":
             # 形状詞（形容動詞）はMozc内部仕様の「名詞形動」へマッピング（活用可能になる）
             return "名詞形動"
+
+        # 7. アルファベット判定（具体的な品詞より後、一般フォールバックより前）
+        if surface.isascii() and surface.isalpha():
+            return "アルファベット"
+
+        # 8. 名詞系（一般フォールバック）
+        if p1 == "名詞":
+            return "名詞"
 
         # 8. その他の自立語・付属語
         mapping = {

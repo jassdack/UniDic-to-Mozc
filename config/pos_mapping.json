@@ -15,7 +15,7 @@
     { "match": { "p3_contains": "助数詞" }, "result": "助数詞" },
 
     { "match": { "p1": "動詞", "cType_contains": "カ行変格" }, "result": "動詞カ変" },
-    { "match": { "p1": "動詞", "cType_contains": "サ行変格", "surface_contains": "ずる" }, "result": "動詞ザ変" },
+    { "match": { "p1": "動詞", "cType_contains": "サ行変格", "surface_endswith": ["ずる", "ズル"] }, "result": "動詞ザ変" },
     { "match": { "p1": "動詞", "cType_contains": "サ行変格" }, "result": "動詞サ変" },
     { "match": { "p1": "動詞", "cType_contains": "ラ行変格" }, "result": "動詞ラ変" },
     { "match": { "p1": "動詞", "cType_contains": "ナ行変格" }, "result": "動詞ナ行五段" },

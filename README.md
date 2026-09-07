@@ -150,6 +150,16 @@ python eval/measure_injection.py path/to/mozc_unidic_merged_?.tsv --exclude-pos 
 
 人名の除外によって**カバレッジは1件も落ちず**、競合だけが約25%減ります。測定の前提と限界は [`eval/README.md`](eval/README.md) を参照してください。
 
+### 品詞判定の一致検証（リリース前に必須）
+
+`convert_unidic.py` には品詞判定の経路が2つあり（JSON設定とその組込フォールバック）、片方だけを直すと静かに乖離します。`lex.csv` 全体で突き合わせるスクリプトを用意しています。
+
+```bash
+python eval/check_pos_agreement.py path/to/unidic-cwj/lex.csv path/to/unidic-csj/lex.csv
+```
+
+乖離が1件でもあれば終了コード 1 を返します。合成データのユニットテストでは実データの組み合わせを網羅できないため、**辞書を生成する前に必ず実行してください**。
+
 > [!TIP]
 > **品詞マッピングのカスタマイズ機能**
 > `convert_unidic.py` は、内部的な判定ロジックとして `config/pos_mapping.json` をデフォルトで読み込みます。このJSONファイルを編集することで、Pythonコードを一切触ることなく品詞マッピングのルールを書き換えることが可能です。設定項目として利用可能な品詞の一覧は、👉 [**config/mozc_pos_list.md**](config/mozc_pos_list.md) をご参照ください。
