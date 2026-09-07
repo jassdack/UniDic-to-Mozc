@@ -5,6 +5,9 @@
 output_tsvs/
 output/
 
+# 評価用テストセットは追跡する（生成物ではないため）
+!eval/*.tsv
+
 # OS specific temporary files
 .DS_Store
 Thumbs.db
