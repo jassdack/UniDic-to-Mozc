@@ -63,6 +63,7 @@ class VerbConjugationTest(unittest.TestCase):
         ("勉強する", "サ行変格", "動詞サ変", "ベンキョウスル"),
         ("察する", "サ行変格", "動詞サ変", "サッスル"),
         ("論ずる", "サ行変格", "動詞ザ変", "ロンズル"),
+        ("アンズル", "サ行変格", "動詞ザ変", "アンズル"),
         ("来る", "カ行変格", "動詞カ変", "クル"),
         ("有り", "文語ラ行変格", "動詞ラ変", "アリ"),
         ("死ぬ", "五段-ナ行", "動詞ナ行五段", "シヌ"),
@@ -500,6 +501,85 @@ class MergePosFilterCliTest(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 merge_unidics.main(["--exclude-pos", "人名", "--only-pos", "地名",
                                     "a.tsv", "out.tsv"])
+
+
+class PosPathAgreementTest(unittest.TestCase):
+    """JSON経路と組込経路の乖離に対する回帰テスト。
+
+    eval/check_pos_agreement.py で lex.csv 全体を突き合わせた際に見つかった
+    4パターンを固定する。合成データは実データの組み合わせを網羅できないため、
+    リリース前には同スクリプトで lex.csv 全体も確認すること。
+    """
+
+    # (表記, 期待する品詞, lex_row への追加指定, 仮名形)
+    CASES = [
+        # 組込側は「助数詞」をリストの完全一致で見ており、「助数詞可能」を取りこぼしていた
+        ("咫", "助数詞", dict(p2="普通名詞", p3="助数詞可能"), "アタ"),
+        # 具体的な品詞（助数詞・サ変・形状詞）はアルファベット判定より優先される
+        ("atm", "助数詞", dict(p2="普通名詞", p3="助数詞可能"), "アトム"),
+        ("ACCESS", "名詞サ変", dict(p2="普通名詞", p3="サ変可能"), "アクセス"),
+        ("Academic", "名詞形動", dict(p1="形状詞", p2="一般"), "アカデミック"),
+        # 具体的な情報が無い英字は従来どおりアルファベット
+        ("IT", "アルファベット", {}, "アイティー"),
+        ("星", "名詞", {}, "ホシ"),
+    ]
+
+    def _classify(self, config_path):
+        rows = [lex_row(s, kana=k, **kw) for s, _, kw, k in self.CASES]
+        with tempfile.TemporaryDirectory() as d:
+            return {r[1]: r[2] for r in run_convert(rows, d, config_path)}
+
+    def test_expected_pos(self):
+        got = self._classify(CONFIG_PATH)
+        for surface, expected, _kw, _kana in self.CASES:
+            with self.subTest(surface=surface):
+                self.assertEqual(got.get(surface), expected)
+
+    def test_both_paths_agree(self):
+        self.assertEqual(self._classify(CONFIG_PATH), self._classify(None))
+
+
+class MatchConditionOperatorTest(unittest.TestCase):
+    """JSONルールの演算子。_contains は「すべて含む」、_endswith は「いずれかで終わる」。"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        with redirect_stdout(io.StringIO()):
+            self.conv = convert_unidic.UnidicConverter(self._tmp.name, None)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _match(self, match, **data):
+        u = {"surface": "", "p1": "*", "p2": "*", "p3": "*", "p4": "*",
+             "cType": "*", "cForm": "*"}
+        u.update(data)
+        return self.conv._match_condition(match, u)
+
+    def test_endswith_is_not_contains(self):
+        """surface_contains では「ずるける」まで拾ってしまう。"""
+        self.assertTrue(self._match({"surface_endswith": "ずる"}, surface="論ずる"))
+        self.assertFalse(self._match({"surface_endswith": "ずる"}, surface="ずるける"))
+        self.assertTrue(self._match({"surface_contains": "ずる"}, surface="ずるける"))
+
+    def test_endswith_list_is_any_of(self):
+        m = {"surface_endswith": ["ずる", "ズル"]}
+        self.assertTrue(self._match(m, surface="論ずる"))
+        self.assertTrue(self._match(m, surface="アンズル"))
+        self.assertFalse(self._match(m, surface="論じる"))
+
+    def test_contains_list_is_all_of(self):
+        m = {"cType_contains": ["五段", "カ行"]}
+        self.assertTrue(self._match(m, cType="五段-カ行"))
+        self.assertFalse(self._match(m, cType="五段-ガ行"))
+
+    def test_equality_list_is_any_of(self):
+        m = {"p4": ["姓", "名"]}
+        self.assertTrue(self._match(m, p4="姓"))
+        self.assertFalse(self._match(m, p4="地名"))
+
+    def test_missing_key_defaults_to_asterisk(self):
+        self.assertTrue(self._match({"cForm": "*"}))
 
 
 if __name__ == "__main__":
