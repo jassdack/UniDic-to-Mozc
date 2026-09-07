@@ -2,7 +2,14 @@ import os
 import sys
 import argparse
 
-LIMIT = 100000        # Mozc ユーザー辞書の 1 ファイルあたり上限
+# Mozc の 1 辞書あたりの上限は 1,000,000 語（kMaxEntrySize）。
+# src/dictionary/user_dictionary_storage.cc:
+#     constexpr size_t kMaxEntrySize = 1000000;
+# インポート経路も同じ上限を使う（user_dictionary_importer.cc が IsDictionaryFull()
+# 経由で entries_size() >= max_entry_size() を判定する）。
+# 既定はこれより保守的な 100,000 のまま。--limit で変更できる。
+MOZC_MAX_ENTRY_SIZE = 1000000
+LIMIT = 100000
 DEFAULT_COST = 99999
 
 
@@ -66,9 +73,15 @@ def build_pos_filter(exclude_pos=(), only_pos=()):
 
 
 def merge_unidics(input_paths, output_path, with_comment=True,
-                  exclude_pos=(), only_pos=()):
+                  exclude_pos=(), only_pos=(), limit=None):
     # key: (reading, surface, pos) -> {"cost": int, "comment": str}
     dictionary = {}
+    limit = LIMIT if limit is None else limit
+    if limit < 1:
+        raise ValueError("limit は 1 以上でなければなりません")
+    if limit > MOZC_MAX_ENTRY_SIZE:
+        print(f"Warning: limit {limit:,} が Mozc の上限 "
+              f"{MOZC_MAX_ENTRY_SIZE:,} を超えています。インポートが失敗します。")
     accept = build_pos_filter(exclude_pos, only_pos)
     pos_seen = set()
 
@@ -94,7 +107,7 @@ def merge_unidics(input_paths, output_path, with_comment=True,
         kind = "only-pos" if only_pos else "exclude-pos"
         print(f"POS filter ({kind}): dropped {total_skipped:,} entries.")
 
-    print(f"Merging and splitting. Max {LIMIT:,} entries per file.")
+    print(f"Merging and splitting. Max {limit:,} entries per file.")
 
     out_dir = os.path.dirname(os.path.abspath(output_path))
     os.makedirs(out_dir, exist_ok=True)
@@ -111,10 +124,10 @@ def merge_unidics(input_paths, output_path, with_comment=True,
 
     written = 0
     file_count = 0
-    for i in range(0, total_entries, LIMIT):
+    for i in range(0, total_entries, limit):
         file_count += 1
         current_output_path = f"{base_name}_{file_count}{ext}"
-        chunk = sorted_keys[i:i + LIMIT]
+        chunk = sorted_keys[i:i + limit]
 
         with open(current_output_path, 'w', encoding='utf-8', newline='') as f_out:
             for key in chunk:
@@ -144,6 +157,10 @@ def main(argv=None):
                            help="指定した品詞を出力から除外する（例: --exclude-pos 人名）")
     pos_group.add_argument("--only-pos", default="", metavar="POS[,POS...]",
                            help="指定した品詞のみを出力する（例: --only-pos 人名）")
+    parser.add_argument("--limit", type=int, default=LIMIT, metavar="N",
+                        help=f"1ファイルあたりの語数上限（既定 {LIMIT:,}）。"
+                             f"Mozc の上限は {MOZC_MAX_ENTRY_SIZE:,} 語なので、"
+                             f"分割せず1ファイルにまとめることもできる")
     parser.add_argument("paths", nargs="*", metavar="INPUT [INPUT ...] OUTPUT",
                         help="中間TSV（2つ以上指定可）と、最後に出力TSVのベースパス"
                              "（_1.tsv, _2.tsv ... が付与されます）")
@@ -161,7 +178,8 @@ def main(argv=None):
     return merge_unidics(inputs, output,
                          with_comment=not args.no_comment,
                          exclude_pos=_split_pos(args.exclude_pos),
-                         only_pos=_split_pos(args.only_pos))
+                         only_pos=_split_pos(args.only_pos),
+                         limit=args.limit)
 
 
 if __name__ == "__main__":

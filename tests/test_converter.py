@@ -645,5 +645,70 @@ class NoisePosConfigTest(unittest.TestCase):
             self.assertEqual(set(json.load(f)["noise_pos"]), {"補助記号", "記号"})
 
 
+class MergeLimitTest(unittest.TestCase):
+    """--limit。Mozc の実際の上限は 1,000,000 語（kMaxEntrySize）で、
+    既定の 100,000 はそれより保守的な分割幅にすぎない。"""
+
+    def _write(self, path, n):
+        with open(path, "w", encoding="utf-8") as f:
+            for i in range(n):
+                f.write(f"よみ{i:04d}\t語{i:04d}\t名詞\tX\t{i}\n")
+
+    def _run(self, argv_extra, n, d):
+        a = os.path.join(d, "a.tsv")
+        self._write(a, n)
+        out = os.path.join(d, "m.tsv")
+        with redirect_stdout(io.StringIO()):
+            rc = merge_unidics.main(argv_extra + [a, out])
+        self.assertEqual(rc, 0)
+        return sorted(p for p in os.listdir(d) if p.startswith("m_"))
+
+    def test_documented_mozc_limit(self):
+        """出典: src/dictionary/user_dictionary_storage.cc の kMaxEntrySize。"""
+        self.assertEqual(merge_unidics.MOZC_MAX_ENTRY_SIZE, 1000000)
+
+    def test_large_limit_produces_a_single_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["--limit", "1000000"], 25, d), ["m_1.tsv"])
+
+    def test_small_limit_splits(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._run(["--limit", "10"], 25, d),
+                             ["m_1.tsv", "m_2.tsv", "m_3.tsv"])
+
+    def test_default_limit_is_unchanged(self):
+        self.assertEqual(merge_unidics.LIMIT, 100000)
+
+    def test_limit_above_mozc_maximum_warns(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = os.path.join(d, "a.tsv")
+            self._write(a, 2)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                merge_unidics.merge_unidics([a], os.path.join(d, "m.tsv"),
+                                            limit=merge_unidics.MOZC_MAX_ENTRY_SIZE + 1)
+            self.assertIn("Warning", buf.getvalue())
+
+    def test_non_positive_limit_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = os.path.join(d, "a.tsv")
+            self._write(a, 2)
+            with self.assertRaises(ValueError):
+                with redirect_stdout(io.StringIO()):
+                    merge_unidics.merge_unidics([a], os.path.join(d, "m.tsv"), limit=0)
+
+    def test_limit_flag_position_is_free(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = os.path.join(d, "a.tsv")
+            self._write(a, 5)
+            out = os.path.join(d, "m.tsv")
+            with redirect_stdout(io.StringIO()):
+                rc = merge_unidics.main([a, "--limit", "2", out])
+            self.assertEqual(rc, 0)
+            self.assertEqual(
+                sorted(p for p in os.listdir(d) if p.startswith("m_")),
+                ["m_1.tsv", "m_2.tsv", "m_3.tsv"])
+
+
 if __name__ == "__main__":
     unittest.main()
