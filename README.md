@@ -5,13 +5,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![License: BSD-3](https://img.shields.io/badge/License-BSD--3-orange.svg)](UNIDIC_LICENSE.txt)
 ![Python: 3.x](https://img.shields.io/badge/Python-3.x-green.svg)
-![Platform: Windows | macOS | Linux | ChromeOS](https://img.shields.io/badge/Platform-Win%20%7C%20Mac%20%7C%20Linux-lightgrey.svg)
+![Platform: Windows | macOS | Linux | FreeBSD | ChromeOS](https://img.shields.io/badge/Platform-Win%20%7C%20Mac%20%7C%20Linux%20%7C%20FreeBSD-lightgrey.svg)
+[![FreeBSD port](https://img.shields.io/badge/FreeBSD%20Ports-ja--unidic--to--mozc-red.svg)](https://cgit.freebsd.org/ports/tree/japanese/unidic-to-mozc)
 
 ---
 
 ## これは何か
 
-国立国語研究所のコーパス辞書「UniDic」（約102万語）を、Mozc（Google 日本語入力）のユーザー辞書形式へ変換したものです。約26.7万語を収録しています。ビルド不要で、GUIの辞書ツールからインポートするだけで使えます。
+国立国語研究所の大規模コーパス辞書「UniDic」（約102万語）を、Mozc（Google 日本語入力）のユーザー辞書形式へ最適化・変換したものです。約26.7万語を収録しています。ビルド不要で、GUIの辞書ツールからインポートするだけで使えます。
+
+> [!TIP]
+> **なぜ変換が必要なのか？（生CSVインポートの罠）**
+> UniDic の配布データ（`lex.csv`）は100万行を超える形態素解析用辞書であり、品詞体系の違いや読みのカタカナ表記・長音など、Mozc ユーザー辞書の仕様と直接の互換性がありません。
+> 前処理なしに生の `lex.csv` を辞書ツールに読み込ませようとすると、フォーマット不整合や過剰なデータ量により**辞書ツールや IME がハングアップ（フリーズ）**する原因になります。
+> 本ツールは、品詞の適切なマッピング、長音表記の正規化、ノイズ除去、単語生起コストに基づくソート、重複排除、および Mozc の100万語上限に合わせた最適化を自動で行います。
 
 > [!IMPORTANT]
 > **Mozc が変換できない語を約13.8万語ぶん足します。そのかわり、日常語の変換はわずかに悪くなります。**
@@ -44,6 +51,10 @@
 > 測定ツールは [`eval/`](eval/) にあり、**任意の Mozc ユーザー辞書に使えます**。
 >
 > 設計思想・既存IME環境との比較・品詞マッピングの統計は 👉 [**Project.md**](Project.md) を参照してください。
+>
+> 📝 **技術解説記事（Zenn）:**
+> - [Mozcに大規模辞書（約27万語）を足すと変換精度はどうなるのか？ 実測と考察](https://zenn.dev/jassdack/articles/93246ebdbcf5df)
+> - [Mozcのユーザー辞書を100万語まで拡張する — 10万語制限の誤解と実装](https://zenn.dev/jassdack/articles/861e69da50882e)
 
 ---
 
@@ -51,12 +62,27 @@
 
 本プロジェクト最大の特徴は、**C++コンパイラやBazel等の複雑なビルドチェインを一切必要としない**点にあります。OSを問わず、GUIの「辞書ツール」から直接インポートできます。
 
+### 辞書の入手方法
+
+#### 方法 A: リリースからダウンロード（全OS対応）
+
+[Releases](https://github.com/jassdack/UniDic-to-Mozc/releases) ページから、生成済みの `mozc_unidic_merged_*.zip` (またはtsv形式) をダウンロードして展開します。
+
+#### 方法 B: FreeBSD 公式パッケージ（FreeBSD をご利用の場合）
+
+FreeBSD では公式 Ports / pkg（[`japanese/unidic-to-mozc`](https://cgit.freebsd.org/ports/tree/japanese/unidic-to-mozc)）として採用されています。以下のコマンドで辞書を配備できます：
+
+```bash
+pkg install ja-unidic-to-mozc
+```
+
+インストール後、`/usr/local/share/unidic-to-mozc/mozc_unidic_merged_1.txt` に辞書ファイルが配置されます。
+
 ### 辞書のインポート手順
 
-1. [Releases](https://github.com/jassdack/UniDic-to-Mozc/releases) ページから、生成済みの `mozc_unidic_merged_*.zip` (またはtsv形式) をダウンロードして展開します。
-2. Mozc または Google 日本語入力の「辞書ツール」を開きます。
-3. 「管理」>「新規辞書にインポート」を選択します。
-4. 解凍した `mozc_unidic_merged_1.tsv` を指定し、インポートを実行します。
+1. Mozc または Google 日本語入力の「辞書ツール」を開きます。
+2. 「管理」>「新規辞書にインポート」を選択します。
+3. ダウンロードして解凍した `mozc_unidic_merged_1.tsv`（FreeBSD の場合は `/usr/local/share/unidic-to-mozc/mozc_unidic_merged_1.txt`）を指定し、インポートを実行します。
 
 #### 人名辞書（任意）
 
